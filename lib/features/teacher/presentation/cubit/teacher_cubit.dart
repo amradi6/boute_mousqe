@@ -7,20 +7,24 @@ class TeacherCubit extends Cubit<TeacherState> {
 
   TeacherCubit(this._supabase) : super(const TeacherInitial());
 
+  // Returns the instructor's entity_id (instructors.id), not the auth user ID
+  String? get _entityId =>
+      _supabase.auth.currentUser?.userMetadata?['entity_id'] as String?;
+
   Future<void> loadDashboard() async {
     emit(const TeacherLoading());
     try {
-      final userId = _supabase.auth.currentUser?.id;
-      if (userId == null) {
+      final entityId = _entityId;
+      if (entityId == null) {
         emit(const TeacherError('لم يتم العثور على المستخدم'));
         return;
       }
 
       final results = await Future.wait([
-        _loadGroups(userId),
-        _loadStudentCount(userId),
-        _loadTodayLessons(userId),
-        _loadRecentEvaluations(userId),
+        _loadGroups(entityId),
+        _loadStudentCount(entityId),
+        _loadTodayLessons(entityId),
+        _loadRecentEvaluations(entityId),
       ]);
 
       emit(TeacherLoaded({
@@ -34,24 +38,24 @@ class TeacherCubit extends Cubit<TeacherState> {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _loadGroups(String userId) async {
+  Future<List<Map<String, dynamic>>> _loadGroups(String entityId) async {
     try {
       final data = await _supabase
           .from('halaqah_groups')
           .select()
-          .eq('teacher_id', userId);
+          .eq('teacher_id', entityId);
       return (data as List).map((g) => g as Map<String, dynamic>).toList();
     } catch (_) {
       return [];
     }
   }
 
-  Future<int> _loadStudentCount(String userId) async {
+  Future<int> _loadStudentCount(String entityId) async {
     try {
       final groups = await _supabase
           .from('halaqah_groups')
           .select('id')
-          .eq('teacher_id', userId);
+          .eq('teacher_id', entityId);
       if ((groups as List).isEmpty) return 0;
       final groupIds = groups.map((g) => g['id']).toList();
       final students = await _supabase
@@ -64,13 +68,13 @@ class TeacherCubit extends Cubit<TeacherState> {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _loadTodayLessons(String userId) async {
+  Future<List<Map<String, dynamic>>> _loadTodayLessons(String entityId) async {
     try {
       final today = DateTime.now().toIso8601String().substring(0, 10);
       final groups = await _supabase
           .from('halaqah_groups')
           .select('id')
-          .eq('teacher_id', userId);
+          .eq('teacher_id', entityId);
       if ((groups as List).isEmpty) return [];
       final groupIds = groups.map((g) => g['id']).toList();
       final data = await _supabase
@@ -84,12 +88,12 @@ class TeacherCubit extends Cubit<TeacherState> {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _loadRecentEvaluations(String userId) async {
+  Future<List<Map<String, dynamic>>> _loadRecentEvaluations(String entityId) async {
     try {
       final data = await _supabase
           .from('evaluations')
-          .select('*, students(profiles(full_name))')
-          .eq('teacher_id', userId)
+          .select('*, students(name)')
+          .eq('teacher_id', entityId)
           .order('created_at', ascending: false)
           .limit(5);
       return (data as List).map((e) => e as Map<String, dynamic>).toList();

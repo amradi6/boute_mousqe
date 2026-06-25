@@ -35,43 +35,44 @@ class _EvaluationPageState extends State<EvaluationPage> {
     if (widget.isTeacher) _loadStudents();
   }
 
+  String? get _entityId =>
+      Supabase.instance.client.auth.currentUser?.userMetadata?['entity_id'] as String?;
+
   Future<void> _loadEvaluations() async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final userId = Supabase.instance.client.auth.currentUser?.id;
-      if (userId == null) throw Exception('المستخدم غير موجود');
+      final entityId = _entityId;
+      if (entityId == null) throw Exception('المستخدم غير موجود');
 
       dynamic query;
       if (widget.isTeacher) {
         query = Supabase.instance.client
             .from('evaluations')
-            .select('*, students(profiles(full_name))')
-            .eq('teacher_id', userId);
+            .select('*, students(name)')
+            .eq('teacher_id', entityId);
       } else {
-        final targetId = widget.studentId ?? userId;
+        final targetId = widget.studentId ?? entityId;
         query = Supabase.instance.client
             .from('evaluations')
-            .select('*, teachers(profiles(full_name))')
+            .select('*, instructors(name)')
             .eq('student_id', targetId);
       }
 
       final data = await query.order('created_at', ascending: false).limit(50);
 
       final items = (data as List).map((e) {
-        final teacherData = widget.isTeacher ? null : (e['teachers'] as Map?)?.cast<String, dynamic>();
-        final studentData = widget.isTeacher ? (e['students'] as Map?)?.cast<String, dynamic>() : null;
-        final teacherProfile = teacherData?['profiles'] as Map?;
-        final studentProfile = studentData?['profiles'] as Map?;
+        final instructor = widget.isTeacher ? null : (e['instructors'] as Map?)?.cast<String, dynamic>();
+        final student = widget.isTeacher ? (e['students'] as Map?)?.cast<String, dynamic>() : null;
 
         return EvaluationEntity(
           id: e['id'] as String,
           studentId: e['student_id'] as String,
-          studentName: (studentProfile?['full_name'] as String?) ?? 'طالبة',
-          teacherId: e['teacher_id'] as String,
-          teacherName: (teacherProfile?['full_name'] as String?) ?? 'المعلمة',
+          studentName: student?['name'] as String? ?? 'طالبة',
+          teacherId: e['teacher_id'] as String? ?? '',
+          teacherName: instructor?['name'] as String? ?? 'المعلمة',
           type: EvaluationTypeExtension.fromString(e['type'] as String? ?? 'memorization'),
           score: (e['score'] as num).toDouble(),
           maxScore: (e['max_score'] as num?)?.toDouble() ?? 100,
@@ -93,23 +94,22 @@ class _EvaluationPageState extends State<EvaluationPage> {
   }
 
   Future<void> _loadStudents() async {
-    final userId = Supabase.instance.client.auth.currentUser?.id;
-    if (userId == null) return;
+    final entityId = _entityId;
+    if (entityId == null) return;
     final groups = await Supabase.instance.client
         .from('halaqah_groups')
         .select('id')
-        .eq('teacher_id', userId);
+        .eq('teacher_id', entityId);
     if ((groups as List).isEmpty) return;
     final groupIds = groups.map((g) => g['id']).toList();
     final students = await Supabase.instance.client
         .from('students')
-        .select('id, profiles(full_name)')
+        .select('id, name')
         .inFilter('group_id', groupIds);
     setState(() {
-      _students = (students as List).map((s) {
-        final profile = (s['profiles'] as Map).cast<String, dynamic>();
-        return {'id': s['id'] as String, 'name': profile['full_name'] as String? ?? 'طالبة'};
-      }).toList();
+      _students = (students as List)
+          .map((s) => {'id': s['id'] as String, 'name': s['name'] as String? ?? 'طالبة'})
+          .toList();
     });
   }
 

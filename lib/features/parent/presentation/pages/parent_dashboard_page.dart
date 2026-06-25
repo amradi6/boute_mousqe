@@ -28,28 +28,30 @@ class _ParentDashboardPageState extends State<ParentDashboardPage> {
     _loadChildren();
   }
 
+  String? get _entityId =>
+      Supabase.instance.client.auth.currentUser?.userMetadata?['entity_id'] as String?;
+
   Future<void> _loadChildren() async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final userId = Supabase.instance.client.auth.currentUser?.id;
-      if (userId == null) throw Exception('المستخدم غير موجود');
+      final entityId = _entityId;
+      if (entityId == null) throw Exception('المستخدم غير موجود');
 
       final data = await Supabase.instance.client
-          .from('parent_student')
-          .select('students(id, profiles(full_name, avatar_url), group_id, halaqah_groups(name))')
-          .eq('parent_id', userId);
+          .from('guardian_students')
+          .select('students(id, name, group_id, halaqah_groups(name))')
+          .eq('guardian_id', entityId);
 
       final children = (data as List).map((d) {
         final student = (d['students'] as Map).cast<String, dynamic>();
-        final profile = (student['profiles'] as Map).cast<String, dynamic>();
         final group = student['halaqah_groups'] as Map?;
         return {
           'id': student['id'],
-          'name': profile['full_name'] as String? ?? 'الابنة',
-          'avatarUrl': profile['avatar_url'],
+          'name': student['name'] as String? ?? 'الابنة',
+          'avatarUrl': null,
           'halaqahName': group?['name'] as String? ?? 'غير محددة',
         };
       }).toList();

@@ -89,7 +89,12 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       final response = await _supabase.auth.signUp(
         email: email,
         password: password,
-        data: {'full_name': name, 'role': role.value},
+        data: {
+          'full_name': name,
+          'role': role.value,
+          'entity_id': appUserId,
+          'entity_type': entityType,
+        },
       );
       if (response.user == null) {
         throw const AppAuthException(message: 'فشل إنشاء الحساب');

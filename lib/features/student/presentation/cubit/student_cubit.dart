@@ -11,21 +11,24 @@ class StudentCubit extends Cubit<StudentState> {
 
   StudentCubit(this._supabase) : super(const StudentInitial());
 
+  // Returns the student's entity_id (students.id), not the auth user ID
+  String? get _entityId =>
+      _supabase.auth.currentUser?.userMetadata?['entity_id'] as String?;
+
   Future<void> loadDashboard() async {
     emit(const StudentLoading());
     try {
-      final userId = _supabase.auth.currentUser?.id;
-      if (userId == null) {
+      final entityId = _entityId;
+      if (entityId == null) {
         emit(const StudentError('لم يتم العثور على المستخدم'));
         return;
       }
 
-      // Load student data, halaqah, lessons and evaluations in parallel
       final results = await Future.wait([
-        _loadHalaqah(userId),
-        _loadLessons(userId),
-        _loadAttendanceCount(userId),
-        _loadLatestEvaluation(userId),
+        _loadHalaqah(entityId),
+        _loadLessons(entityId),
+        _loadAttendanceCount(entityId),
+        _loadLatestEvaluation(entityId),
       ]);
 
       final halaqah = results[0] as HalaqahEntity?;
@@ -48,25 +51,24 @@ class StudentCubit extends Cubit<StudentState> {
     }
   }
 
-  Future<HalaqahEntity?> _loadHalaqah(String userId) async {
+  Future<HalaqahEntity?> _loadHalaqah(String entityId) async {
     try {
       final data = await _supabase
           .from('students')
-          .select('halaqah_groups(id, name, description, location, schedule_day, schedule_time, teachers(profiles(full_name, avatar_url)))')
-          .eq('id', userId)
+          .select('group_id, halaqah_groups(id, name, description, location, schedule_day, schedule_time, instructors(name))')
+          .eq('id', entityId)
           .maybeSingle();
 
       if (data?['halaqah_groups'] == null) return null;
       final g = data!['halaqah_groups'] as Map<String, dynamic>;
-      final teacher = (g['teachers'] as Map?)?.cast<String, dynamic>();
-      final profile = (teacher?['profiles'] as Map?)?.cast<String, dynamic>();
+      final instructor = (g['instructors'] as Map?)?.cast<String, dynamic>();
 
       return HalaqahEntity(
         id: g['id'] as String,
         name: g['name'] as String,
         description: g['description'] as String?,
-        teacherName: profile?['full_name'] as String?,
-        teacherAvatarUrl: profile?['avatar_url'] as String?,
+        teacherName: instructor?['name'] as String?,
+        teacherAvatarUrl: null,
         location: g['location'] as String?,
         scheduleDay: g['schedule_day'] as String?,
         scheduleTime: g['schedule_time'] as String?,
@@ -76,12 +78,12 @@ class StudentCubit extends Cubit<StudentState> {
     }
   }
 
-  Future<Map<String, dynamic>> _loadLessons(String userId) async {
+  Future<Map<String, dynamic>> _loadLessons(String entityId) async {
     try {
       final studentData = await _supabase
           .from('students')
           .select('group_id')
-          .eq('id', userId)
+          .eq('id', entityId)
           .maybeSingle();
 
       if (studentData?['group_id'] == null) {
@@ -113,17 +115,17 @@ class StudentCubit extends Cubit<StudentState> {
     }
   }
 
-  Future<Map<String, int>> _loadAttendanceCount(String userId) async {
+  Future<Map<String, int>> _loadAttendanceCount(String entityId) async {
     try {
       final attended = await _supabase
           .from('attendances')
           .select('id')
-          .eq('student_id', userId)
+          .eq('student_id', entityId)
           .eq('status', 'present');
       final all = await _supabase
           .from('attendances')
           .select('id')
-          .eq('student_id', userId);
+          .eq('student_id', entityId);
       return {
         'attended': (attended as List).length,
         'total': (all as List).length,
@@ -133,26 +135,25 @@ class StudentCubit extends Cubit<StudentState> {
     }
   }
 
-  Future<EvaluationEntity?> _loadLatestEvaluation(String userId) async {
+  Future<EvaluationEntity?> _loadLatestEvaluation(String entityId) async {
     try {
       final data = await _supabase
           .from('evaluations')
-          .select('*, teachers(profiles(full_name))')
-          .eq('student_id', userId)
+          .select('*, instructors(name)')
+          .eq('student_id', entityId)
           .order('created_at', ascending: false)
           .limit(1)
           .maybeSingle();
 
       if (data == null) return null;
-      final teacher = (data['teachers'] as Map?)?.cast<String, dynamic>();
-      final profile = (teacher?['profiles'] as Map?)?.cast<String, dynamic>();
+      final instructor = (data['instructors'] as Map?)?.cast<String, dynamic>();
 
       return EvaluationEntity(
         id: data['id'] as String,
-        studentId: userId,
+        studentId: entityId,
         studentName: '',
-        teacherId: data['teacher_id'] as String,
-        teacherName: profile?['full_name'] as String?,
+        teacherId: data['teacher_id'] as String? ?? '',
+        teacherName: instructor?['name'] as String?,
         type: EvaluationTypeExtension.fromString(data['type'] as String? ?? 'memorization'),
         score: (data['score'] as num).toDouble(),
         maxScore: (data['max_score'] as num?)?.toDouble() ?? 100,

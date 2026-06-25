@@ -33,19 +33,22 @@ class _AttendancePageState extends State<AttendancePage> {
     _loadData();
   }
 
+  String? get _entityId =>
+      Supabase.instance.client.auth.currentUser?.userMetadata?['entity_id'] as String?;
+
   Future<void> _loadData() async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final userId = Supabase.instance.client.auth.currentUser?.id;
-      if (userId == null) throw Exception('المستخدم غير موجود');
+      final entityId = _entityId;
+      if (entityId == null) throw Exception('المستخدم غير موجود');
 
       if (widget.isTeacher) {
-        await _loadTeacherData(userId);
+        await _loadTeacherData(entityId);
       } else {
-        await _loadStudentAttendance(userId);
+        await _loadStudentAttendance(entityId);
       }
     } catch (e) {
       setState(() {
@@ -55,11 +58,11 @@ class _AttendancePageState extends State<AttendancePage> {
     }
   }
 
-  Future<void> _loadTeacherData(String userId) async {
+  Future<void> _loadTeacherData(String entityId) async {
     final groups = await Supabase.instance.client
         .from('halaqah_groups')
         .select('id')
-        .eq('teacher_id', userId);
+        .eq('teacher_id', entityId);
 
     if ((groups as List).isEmpty) {
       setState(() => _loading = false);
@@ -90,7 +93,7 @@ class _AttendancePageState extends State<AttendancePage> {
     setState(() => _loading = true);
     final students = await Supabase.instance.client
         .from('students')
-        .select('id, profiles(full_name, avatar_url)')
+        .select('id, name')
         .inFilter('group_id', groupIds);
 
     final existing = await Supabase.instance.client
@@ -108,8 +111,7 @@ class _AttendancePageState extends State<AttendancePage> {
     for (final s in (students as List)) {
       final id = s['id'] as String;
       map[id] = AttendanceStatusExtension.fromString(existingMap[id] ?? 'present');
-      final profile = (s['profiles'] as Map).cast<String, dynamic>();
-      list.add({'id': id, 'name': profile['full_name'] as String? ?? 'طالبة'});
+      list.add({'id': id, 'name': s['name'] as String? ?? 'طالبة'});
     }
 
     setState(() {
@@ -232,10 +234,11 @@ class _AttendancePageState extends State<AttendancePage> {
               onChanged: (val) async {
                 if (val == null) return;
                 setState(() => _selectedLessonId = val);
+                final entityId = _entityId ?? '';
                 final groups = await Supabase.instance.client
                     .from('halaqah_groups')
                     .select('id')
-                    .eq('teacher_id', Supabase.instance.client.auth.currentUser?.id ?? '');
+                    .eq('teacher_id', entityId);
                 await _loadStudentsForLesson(val, (groups as List).map((g) => g['id']).toList());
               },
             ),
