@@ -24,9 +24,16 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<Either<Failure, UserEntity>> signIn({
     required String name,
     required String password,
+    required String entityType,
+    required String entityId,
   }) async {
     try {
-      final user = await remoteDataSource.signIn(name: name, password: password);
+      final user = await remoteDataSource.signIn(
+        name: name,
+        password: password,
+        entityType: entityType,
+        entityId: entityId,
+      );
       return Right(user);
     } on AppAuthException catch (e) {
       return Left(AuthFailure(message: e.message));

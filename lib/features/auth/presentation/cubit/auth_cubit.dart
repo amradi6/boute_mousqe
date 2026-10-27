@@ -58,9 +58,19 @@ class AuthCubit extends Cubit<AuthState> {
     );
   }
 
-  Future<void> signIn({required String name, required String password}) async {
+  Future<void> signIn({
+    required String name,
+    required String password,
+    required String entityType,
+    required String entityId,
+  }) async {
     emit(const AuthLoading());
-    final result = await _signIn(SignInParams(name: name, password: password));
+    final result = await _signIn(SignInParams(
+      name: name,
+      password: password,
+      entityType: entityType,
+      entityId: entityId,
+    ));
     result.fold(
       (failure) => emit(AuthError(failure.message)),
       (user) => emit(AuthAuthenticated(user)),

@@ -11,14 +11,26 @@ class SignInUseCase extends UseCase<UserEntity, SignInParams> {
 
   @override
   Future<Either<Failure, UserEntity>> call(SignInParams params) =>
-      repository.signIn(name: params.name, password: params.password);
+      repository.signIn(
+        name: params.name,
+        password: params.password,
+        entityType: params.entityType,
+        entityId: params.entityId,
+      );
 }
 
 class SignInParams extends Equatable {
   final String name;
   final String password;
-  const SignInParams({required this.name, required this.password});
+  final String entityType;
+  final String entityId;
+  const SignInParams({
+    required this.name,
+    required this.password,
+    required this.entityType,
+    required this.entityId,
+  });
 
   @override
-  List<Object> get props => [name, password];
+  List<Object> get props => [name, password, entityType, entityId];
 }

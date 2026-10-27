@@ -25,10 +25,11 @@ GoRouter createRouter(AuthCubit authCubit) => GoRouter(
       redirect: (context, state) {
         final authState = authCubit.state;
         final isAuth = authState is AuthAuthenticated;
-        final isLoading = authState is AuthLoading || authState is AuthInitial;
         final location = state.uri.toString();
 
-        if (isLoading) return '/splash';
+        // During startup or any operation, stay on the current page.
+        // The splash page is already the initialLocation — no redirect needed.
+        if (authState is AuthInitial || authState is AuthLoading) return null;
 
         if (location == '/splash' || location == '/login') {
           if (isAuth) return _roleHomePath(authState as AuthAuthenticated); // ignore: unnecessary_cast

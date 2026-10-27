@@ -100,7 +100,7 @@ class ProfilePage extends StatelessWidget {
 }
 
 class _InfoCard extends StatelessWidget {
-  final dynamic user;
+  final UserEntity? user;
   const _InfoCard({this.user});
 
   @override

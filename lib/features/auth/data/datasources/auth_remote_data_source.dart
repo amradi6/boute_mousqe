@@ -5,7 +5,12 @@ import '../models/user_model.dart';
 
 abstract class AuthRemoteDataSource {
   Future<UserLookup?> lookupByName(String name);
-  Future<UserModel> signIn({required String name, required String password});
+  Future<UserModel> signIn({
+    required String name,
+    required String password,
+    required String entityType,
+    required String entityId,
+  });
   Future<UserModel> setFirstPassword({
     required String appUserId,
     required String entityType,
@@ -46,13 +51,14 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   }
 
   @override
-  Future<UserModel> signIn({required String name, required String password}) async {
+  Future<UserModel> signIn({
+    required String name,
+    required String password,
+    required String entityType,
+    required String entityId,
+  }) async {
     try {
-      final lookup = await lookupByName(name);
-      if (lookup == null) throw const AppAuthException(message: 'الاسم غير مسجل');
-      if (!lookup.hasPassword) throw const AppAuthException(message: 'لم يتم تعيين كلمة مرور بعد');
-
-      final email = _buildEmail(lookup.entityType, lookup.id);
+      final email = _buildEmail(entityType, entityId);
       final response = await _supabase.auth.signInWithPassword(
         email: email,
         password: password,
@@ -64,7 +70,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         id: response.user!.id,
         email: '',
         fullName: name.trim(),
-        role: lookup.role,
+        role: UserRoleExtension.fromEntityType(entityType),
         createdAt: DateTime.now(),
       );
     } on AppAuthException {
@@ -85,28 +91,34 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     required UserRole role,
   }) async {
     try {
-      final email = _buildEmail(entityType, appUserId);
-      final response = await _supabase.auth.signUp(
-        email: email,
-        password: password,
-        data: {
-          'full_name': name,
-          'role': role.value,
+      // Call the Edge Function which uses the service-role admin API —
+      // this bypasses email provider settings and creates a confirmed user.
+      final fnResponse = await _supabase.functions.invoke(
+        'set-first-password',
+        body: {
           'entity_id': appUserId,
           'entity_type': entityType,
+          'name': name,
+          'password': password,
         },
       );
-      if (response.user == null) {
-        throw const AppAuthException(message: 'فشل إنشاء الحساب');
+
+      final body = fnResponse.data as Map<String, dynamic>?;
+      if (fnResponse.status != 200 || body?['success'] != true) {
+        final errMsg = body?['error'] as String? ?? 'فشل إنشاء الحساب';
+        throw AppAuthException(message: _mapAuthError(errMsg));
       }
-      // Link auth user to the entity in user_credentials
-      await _supabase.from('user_credentials').insert({
-        'entity_id': appUserId,
-        'entity_type': entityType,
-        'auth_user_id': response.user!.id,
-      });
+
+      // Sign in immediately to establish the session
+      final signIn = await _supabase.auth.signInWithPassword(
+        email: _buildEmail(entityType, appUserId),
+        password: password,
+      );
+      if (signIn.user == null) {
+        throw const AppAuthException(message: 'فشل تسجيل الدخول بعد إنشاء كلمة المرور');
+      }
       return UserModel(
-        id: response.user!.id,
+        id: signIn.user!.id,
         email: '',
         fullName: name.trim(),
         role: role,
@@ -171,9 +183,25 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       '${entityType}_$entityId@masaar.app';
 
   String _mapAuthError(String message) {
-    if (message.contains('Invalid login')) return 'كلمة المرور غير صحيحة';
-    if (message.contains('already registered')) return 'هذا الحساب مسجل مسبقًا';
-    if (message.contains('Password should be')) return 'كلمة المرور قصيرة جدًا (8 أحرف على الأقل)';
-    return 'حدث خطأ في المصادقة';
+    final m = message.toLowerCase();
+    if (m.contains('invalid login') || m.contains('invalid_credentials') || m.contains('invalid credentials')) {
+      return 'كلمة المرور غير صحيحة';
+    }
+    if (m.contains('already registered') || m.contains('user already exists')) {
+      return 'هذا الحساب مسجل مسبقًا';
+    }
+    if (m.contains('password should be') || m.contains('weak_password') || m.contains('password is too')) {
+      return 'كلمة المرور قصيرة جدًا (8 أحرف على الأقل)';
+    }
+    if (m.contains('email not confirmed') || m.contains('email_not_confirmed')) {
+      return 'الحساب غير مفعّل، تواصلي مع الإدارة';
+    }
+    if (m.contains('email signups are disabled') || m.contains('email_provider_disabled') || m.contains('signups not allowed')) {
+      return 'خدمة التسجيل معطّلة، تواصلي مع الإدارة';
+    }
+    if (m.contains('rate limit') || m.contains('too many requests')) {
+      return 'محاولات كثيرة جداً، حاولي لاحقاً';
+    }
+    return 'كلمة المرور غير صحيحة';
   }
 }

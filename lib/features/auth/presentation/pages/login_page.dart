@@ -170,7 +170,12 @@ class _LoginPageState extends State<LoginPage> {
                 ? null
                 : () {
                     if (_passwordFormKey.currentState?.validate() ?? false) {
-                      cubit.signIn(name: state.name, password: _passwordController.text);
+                      cubit.signIn(
+                        name: state.name,
+                        password: _passwordController.text,
+                        entityType: state.entityType,
+                        entityId: state.appUserId,
+                      );
                     }
                   },
             isLoading: isLoading,

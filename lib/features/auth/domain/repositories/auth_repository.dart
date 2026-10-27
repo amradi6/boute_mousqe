@@ -8,6 +8,8 @@ abstract class AuthRepository {
   Future<Either<Failure, UserEntity>> signIn({
     required String name,
     required String password,
+    required String entityType,
+    required String entityId,
   });
 
   Future<Either<Failure, UserEntity>> setFirstPassword({

@@ -100,12 +100,20 @@ class _AppBottomNav extends StatelessWidget {
   });
 
   int get _currentIndex {
+    // Pick the item whose path is the longest prefix of currentLocation.
+    // This ensures '/student/attendance' wins over '/student' when both match.
+    var bestIndex = 0;
+    var bestLength = -1;
     for (var i = 0; i < items.length; i++) {
-      if (currentLocation == items[i].path || currentLocation.startsWith('${items[i].path}/')) {
-        return i;
+      final path = items[i].path;
+      if (currentLocation == path || currentLocation.startsWith('$path/')) {
+        if (path.length > bestLength) {
+          bestIndex = i;
+          bestLength = path.length;
+        }
       }
     }
-    return 0;
+    return bestIndex;
   }
 
   @override
