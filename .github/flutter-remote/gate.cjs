@@ -310,6 +310,11 @@ const server = http.createServer((req, res) => {
   delete upstreamHeaders['proxy-connection'];
   delete upstreamHeaders['accept-encoding'];
   upstreamHeaders['accept-encoding'] = 'identity';
+  if (!agent) {
+    upstreamHeaders.authorization = `Bearer ${TOKEN}`;
+  } else {
+    delete upstreamHeaders.authorization;
+  }
 
   if (res.socket) {
     res.socket.setNoDelay(true);
@@ -402,9 +407,10 @@ server.on('upgrade', (req, socket, head) => {
     upstream.setNoDelay(true);
     upstream.setKeepAlive(true, 10000);
 
-    const { connection: _c, 'proxy-connection': _pc, te: _te, ...forwardHeaders } = req.headers;
+    const { connection: _c, 'proxy-connection': _pc, te: _te, authorization: _authorization, ...forwardHeaders } = req.headers;
     const headersStr = Object.entries({
       ...forwardHeaders,
+      ...(upstreamPort === TARGET_PORT ? { authorization: `Bearer ${TOKEN}` } : {}),
       // Hop-by-hop "Connection: Upgrade" must be re-sent upstream, otherwise
       // Node's HTTP parser on :3201 / serve-sim never sees a WebSocket upgrade
       // and answers 404 (no /signal, no /ws input).
@@ -437,4 +443,3 @@ server.listen(PORT, TARGET_HOST, () => {
   console.log(`[flutter-remote gate] listening on ${TARGET_HOST}:${PORT} -> :${TARGET_PORT} (mode: ${TRANSPORT_MODE})`);
   console.log(`[flutter-remote gate] ${relay ? relay.describe() : 'MJPEG relay off (FLUTTER_REMOTE_STREAM_RELAY=0): serve-sim frames pass through unchanged'}`);
 });
-

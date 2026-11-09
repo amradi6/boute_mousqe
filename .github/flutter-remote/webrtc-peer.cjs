@@ -95,6 +95,7 @@ videoEncoder.on('packets', (rtpPackets) => {
 const serveSimConsumer = new ServeSimConsumer({
   targetHost: TARGET_HOST,
   previewPort: PREVIEW_PORT,
+  authToken: config.serveSimAuthToken,
   streamPath: STREAM_PATH,
   inputPath: INPUT_PATH,
   videoEncoder,
