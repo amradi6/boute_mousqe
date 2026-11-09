@@ -18,6 +18,7 @@ class ServeSimConsumer {
   constructor(options = {}) {
     this.targetHost = options.targetHost || '127.0.0.1';
     this.previewPort = options.previewPort || 3200;
+    this.authToken = options.authToken || '';
     this.streamPath = options.streamPath || '/stream.mjpeg?raw=1';
     this.videoEncoder = options.videoEncoder || null;
     this.streamWsClients = options.streamWsClients || new Set();
@@ -70,7 +71,10 @@ class ServeSimConsumer {
         host: this.targetHost,
         port: this.previewPort,
         path: this.streamPath,
-        headers: { 'Accept-Encoding': 'identity' },
+        headers: {
+          'Accept-Encoding': 'identity',
+          ...(this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {}),
+        },
       },
       (res) => {
         console.log(
@@ -212,7 +216,9 @@ class ServeSimConsumer {
     this.serveSimConnecting = true;
 
     const url = `ws://${this.targetHost}:${this.previewPort}${this.inputPath}`;
-    const ws = new this.WebSocketClass(url);
+    const ws = new this.WebSocketClass(url, {
+      headers: this.authToken ? { Authorization: `Bearer ${this.authToken}` } : {},
+    });
     this.serveSimWs = ws;
 
     ws.on('open', () => {

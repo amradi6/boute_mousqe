@@ -34,6 +34,7 @@ const config = Object.freeze({
   /** agent-device proxy (0 = disabled) */
   agentPort: Number(env.FLUTTER_REMOTE_AGENT_PORT || 0),
   gateToken: env.FLUTTER_REMOTE_GATE_TOKEN || '',
+  serveSimAuthToken: env.SERVE_SIM_AUTH_TOKEN || env.FLUTTER_REMOTE_GATE_TOKEN || '',
   transport: env.FLUTTER_REMOTE_TRANSPORT || 'webrtc',
   streamPath: env.FLUTTER_REMOTE_STREAM_PATH || '/stream.mjpeg?raw=1',
   /** serve-sim's input socket; empty = derived from streamPath (/helper/<udid>/ws) */
